@@ -1,0 +1,66 @@
+<p>
+  <%= erb :help_seek_result %>
+  <hr>
+
+  <% if arg[:seed] %>
+    <% if arg[:seed].empty? %>
+      <ul>
+        <li>
+          Unfortunately we didn't successfully find your seed. There could have
+          several possible reasons:
+          <ul>
+            <li>The <strong>first rare cat</strong> you put into is a duplicated rare cat. <em>Try to remove it from the list and try again.</em></li>
+            <li>There's a bug.</li>
+            <li>You put the cats wrong, or you picked the wrong event.</li>
+            <li>The formula changed and we didn't update the code yet.</li>
+          </ul>
+        </li>
+        <li>Do you want to <a href="<%= route.seek_uri %>">try again</a>?</li>
+      </ul>
+    <% else %>
+      <ul>
+        <li>
+          Your starting seed is:
+          <ul>
+            <li>
+              <a href="<%= route.uri(query: {seed: arg.dig(:seed, 0)}) %>"><%= arg.dig(:seed, 0) %></a>
+            </li>
+          </ul>
+        </li>
+        <li>
+          After rolling the cats you entered, your last seed is:
+          <ul>
+            <li>
+              <a href="<%= route.uri(query: {seed: arg.dig(:seed, 1)}) %>"><%= arg.dig(:seed, 1) %></a>
+            </li>
+          </ul>
+        </li>
+        <% if offset_seed = made10rolls?(arg[:seed]) %>
+          <li>
+            If you made 11-rolls with a <strong>guaranteed event</strong>,
+            or 15-rolls (3+5+7) with a <strong>step-up event</strong>,
+            and you didn't fill the guaranteed uber in the previous form,
+            then your seed should be:
+            <ul>
+              <li>
+                <a href="<%= route.uri(query: {seed: offset_seed}) %>"><%= offset_seed %></a> (1A here is the same as 1B in the above link)
+              </li>
+            </ul>
+          </li>
+        <% end %>
+        <li>Note that <strong>you only need to find the seed once</strong>. Save the URL. Following up, you can <a href="<%= route.help_uri %>#advance-the-tracks">advance the tracks</a> from there.</li>
+      </ul>
+    <% end %>
+  <% elsif arg[:seek] %>
+    <% if arg[:seek].started? %>
+      <ul><li>Now seeking your seed...</li></ul>
+    <% else %>
+      <ul><li>You're <%= arg[:seek].position %> in the queue.</li></ul>
+    <% end %>
+    <script type="text/javascript">
+      window.setTimeout(function(){ window.location.reload(true) }, 5000);
+    </script>
+  <% else %>
+    <ul><li>Are you <a href="<%= route.seek_uri %>">seeking</a> the seed?</li></ul>
+  <% end %>
+</p>

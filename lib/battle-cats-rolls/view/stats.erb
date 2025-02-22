@@ -1,0 +1,132 @@
+<%= erb :form %>
+
+<table>
+<% arg[:stats].each do |stat| %>
+  <tr class="border_upper">
+    <th colspan="6" title="<%= stat.desc %>"><%= h stat.name %></th>
+  </tr>
+  <tr class="border_upper">
+    <td><%= l10n('Health') %></td>
+    <td><%= stat.health %></td>
+    <td><%= l10n('Knockback times') %></td>
+    <td><%= stat.knockbacks %></td>
+    <td><%= l10n('Speed') %></td>
+    <td><%= stat.speed %></td>
+  </tr>
+  <tr class="border_middle">
+    <td><%= l10n('Production cost') %></td>
+    <td><%= stat.production_cost %></td>
+    <td><%= l10n('Production cooldown') %></td>
+    <td><%= stat_time stat.production_cooldown %></td>
+    <td><%= l10n('Attack cooldown') %></td>
+    <td><%= stat_time stat.attack_cooldown %></td>
+  </tr>
+  <tr class="border_middle">
+    <td><%= l10n('Attack cycle') %></td>
+    <td><%= stat_time stat.attack_cycle %></td>
+    <td><%= l10n('Attack duration') %></td>
+    <td><%= stat_time stat.attack_duration %></td>
+    <td><%= l10n('Push duration') %></td>
+    <td><%= stat_time stat.push_duration %></td>
+  </tr>
+  <% if stat.long_range? %>
+  <tr class="border_middle">
+    <td></td>
+    <td></td>
+    <td><%= l10n('Range') %></td>
+    <td><%= stat.range %></td>
+    <td><%= l10n('Enemy base range') %></td>
+    <td><%= stat.base_range %></td>
+  </tr>
+  <% end %>
+  <% if stat.attacks.size > 1 %>
+  <tr class="border_middle">
+    <td><%= l10n('DPS sum') %></td>
+    <td><%= stat_int(stat.dps_sum) %></td>
+    <td><%= l10n('Max DPS area') %></td>
+    <td><%= stat.max_dps_area %></td>
+    <td><%= l10n('Damage sum') %></td>
+    <td><%= stat.damage_sum %></td>
+  </tr>
+  <% end %>
+  <% each_attack(stat) do |attack| %>
+  <tr class="border_upper <%= attack_tr_class(attack) %>">
+    <td><%= l10n('DPS') %></td>
+    <td><%= stat_int(attack.dps) %></td>
+    <td><%= l10n(stat.area_type) %></td>
+    <td><%= attack.area_display %></td>
+    <td><%= l10n('Damage') %></td>
+    <td><%= attack.damage %></td>
+  </tr>
+  <tr class="border_lower <%= attack_tr_class(attack) %>">
+    <% if attack.kind_of?(BattleCatsRolls::TriggeredAttack) %>
+    <td colspan="2"><%= attack.display_short %></td>
+    <% else %>
+    <td><%= l10n('Trigger duration') %></td>
+    <td><%= stat_time attack.duration %></td>
+    <% end %>
+    <td><%= l10n('Trigger effects') %></td>
+    <td colspan="3"><%= display_list(attack.display_effects) %></td>
+  </tr>
+  <% end %>
+  <% stat.specialized_abilities.each do |ability| %>
+  <tr class="border_middle">
+    <td><%= l10n(ability.name) %></td>
+    <td colspan="5"><%= display_ability(ability) %></td>
+  </tr>
+  <% end %>
+  <% if stat.generic_abilities.any? %>
+  <tr class="border_middle">
+    <td></td>
+    <td colspan="5"><%= l10n('Abilities below will not be affected by curse') %></td>
+  </tr>
+    <% stat.generic_abilities.each do |ability| %>
+  <tr class="border_middle">
+    <td><%= l10n(ability.name) %></td>
+    <td colspan="5"><%= display_ability(ability) %></td>
+  </tr>
+    <% end %>
+  <% end %>
+<% end %>
+<% if talents = arg.dig(:talents, false) %>
+  <tr class="border_upper talents">
+    <% if talent_against = arg[:cat].talent_against %>
+    <td>Talents against</td>
+    <td colspan="5"><%= display_list(BattleCatsRolls::Ability::Specialization.display(talent_against), strong: true) %></td>
+    <% else %>
+    <td>Talents</td>
+    <td colspan="5"></td>
+    <% end %>
+  </tr>
+  <% talents.each do |talent| %>
+  <tr class="border_middle">
+    <td><%= l10n(talent.name) %></td>
+    <td colspan="5"><%= display_ability(talent) %></td>
+  </tr>
+  <% end %>
+<% end %>
+<% if ultra_talents = arg.dig(:talents, true) %>
+  <tr class="border_middle ultra_talents">
+    <td>Ultra talents</td>
+    <td colspan="5"></td>
+  </tr>
+  <% ultra_talents.each do |talent| %>
+    <tr class="border_middle">
+      <td><%= l10n(talent.name) %></td>
+      <td colspan="5"><%= display_ability(talent) %></td>
+    </tr>
+  <% end %>
+<% end %>
+  <tr class="border_bottom"></tr>
+</table>
+
+<ul>
+  <% if cat = arg[:cat] %>
+  <% if wiki = uri_to_wiki(cat) %>
+  <li><a href="<%= wiki %>">The Battle Cats Wiki</a></li>
+  <% end %>
+  <li><a href="<%= uri_to_cat_db(cat) %>">にゃんこ大戦争データベース</a></li>
+  <li><a href="<%= uri_to_my_gamatoto(cat) %>">My Gamatoto</a></li>
+  <% end %>
+  <li>Assuming maxed blue orbs, treasures, and legend stages cost</li>
+</ul>

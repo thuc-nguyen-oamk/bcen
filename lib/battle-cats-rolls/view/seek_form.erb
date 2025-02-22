@@ -1,0 +1,36 @@
+<div class="note"><ul>
+  <li><%= erb :help_seek %></li>
+  <li>There are <%= arg[:queue_size] %> people waiting for their seeds.</li>
+</ul></div>
+
+<form method="post" action="//<%= route.seek_host %>/seek/enqueue"
+  enctype="application/x-www-form-urlencoded">
+  <ol>
+    <% 10.times do %>
+      <li>
+        <select name="rolls">
+          <option value="" selected="selected">Pick your roll</option>
+
+          <optgroup label="Rare:">
+            <%= pick_option(gacha.rare_cats) %>
+          </optgroup>
+
+          <optgroup label="Super:">
+            <%= pick_option(gacha.supa_cats) %>
+          </optgroup>
+
+          <optgroup label="Uber:">
+            <%= pick_option(gacha.uber_cats) %>
+          </optgroup>
+
+          <optgroup label="Legendary:">
+            <%= pick_option(gacha.legend_cats) %>
+          </optgroup>
+        </select>
+      </li>
+    <% end %>
+  </ol>
+
+  <%= hidden_inputs 'event', 'lang', 'version', 'name' %>
+  <input type="submit" value="Seek">
+</form>

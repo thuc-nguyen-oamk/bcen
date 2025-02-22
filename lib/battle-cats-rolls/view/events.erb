@@ -1,0 +1,75 @@
+<% if route.path_info.match?(%r{\A/(?:seek)?\z}) %>
+<div class="events">
+  <label for="event_select">Event:</label>
+  <select id="event_select" name="event" onchange="roll(this)">
+    <optgroup label="Upcoming:">
+      <% route.upcoming_events.each do |(event_name, info)| %>
+        <option
+          value="<%= event_name %>"
+          <%= selected_current_event(event_name) %>>
+            <%= show_event(info) %></option>
+      <% end %>
+    </optgroup>
+
+    <optgroup label="Custom:">
+      <option value="custom"
+        <%= selected_current_event('custom') %>>Customize...</option>
+    </optgroup>
+
+    <optgroup label="Past:">
+      <% route.past_events.reverse_each do |(event_name, info)| %>
+        <option
+          value="<%= event_name %>"
+          <%= selected_current_event(event_name) %>>
+            <%= show_event(info) %></option>
+      <% end %>
+    </optgroup>
+  </select>
+
+  <% if route.event == 'custom' %>
+    <div class="custom">
+      <label for="custom_select">Custom gacha:</label>
+      <select id="custom_select" name="custom" onchange="roll(this)">
+        <% route.ball.each_custom_gacha(route.name) do |id, name| %>
+          <option
+            value="<%= id %>"
+            <%= selected_custom_gacha(id) %>><%= name %></option>
+        <% end %>
+      </select>
+
+      <label for="rate_input">Rate:</label>
+      <select id="rate_select" name="rate" onchange="roll(this)">
+        <% BattleCatsRolls::CrystalBall.predefined_rates.each do |rate, data| %>
+          <option
+            value="<%= rate %>"
+            <%= selected_rate(rate) %>><%= data[:name] %></option>
+        <% end %>
+      </select>
+
+      <% if route.rate == '' %>
+        <label for="rare_input">Rare:</label>
+        <input
+          type="number" id="rare_input" name="c_rare"
+          min="0" max="10000" value="<%= route.c_rare %>"
+          onclick="this.select()">
+
+        <label for="supa_input">Super:</label>
+        <input
+          type="number" id="supa_input" name="c_supa"
+          min="0" max="10000" value="<%= route.c_supa %>"
+          onclick="this.select()">
+
+        <label for="uber_input">Uber:</label>
+        <input
+          type="number" id="uber_input" name="c_uber"
+          min="0" max="10000" value="<%= route.c_uber %>"
+          onclick="this.select()">
+      <% else %>
+        <%= hidden_inputs('c_rare', 'c_supa', 'c_uber') %>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+<% else %>
+<%= hidden_inputs('event') %>
+<% end %>
