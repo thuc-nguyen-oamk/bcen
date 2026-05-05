@@ -79,8 +79,7 @@ def load_tts_model_once(
     model_name=MODEL_NAME,
     ckpt_file=CKPT_FILE,
     vocab_file=VOCAB_FILE,
-    vocoder_name=VOCODER_NAME,
-    load_vocoder_from_local=True
+    vocoder_name=VOCODER_NAME
 ):
     """Load TTS model and vocoder ONCE and cache globally."""
     global _model_cache
@@ -97,18 +96,11 @@ def load_tts_model_once(
 
     print(f"🧠 Loading TTS model: {model_name}...")
 
-    # Load vocoder
-    if vocoder_name == "vocos":
-        vocoder_local_path = "../checkpoints/vocos-mel-24khz"
-    elif vocoder_name == "bigvgan":
-        vocoder_local_path = "../checkpoints/bigvgan_v2_24khz_100band_256x"
-    else:
-        raise ValueError(f"Unsupported vocoder: {vocoder_name}")
-
+    # Load vocoder - use HF default cache (not local path)
     vocoder = load_vocoder(
         vocoder_name=vocoder_name,
-        is_local=load_vocoder_from_local,
-        local_path=vocoder_local_path
+        is_local=False,  # Use HF default cache
+        local_path=None
     )
 
     # Load model config
