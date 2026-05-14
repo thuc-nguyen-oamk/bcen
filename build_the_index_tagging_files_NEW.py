@@ -1,146 +1,181 @@
 import os
 import torch
-import chromadb
 from PIL import Image
-from decord import VideoReader, cpu
-from transformers import AutoProcessor, AutoModel
+import cv2
+import numpy as np
+from pathlib import Path
+import chromadb
+import logging
+from typing import List, Optional
 from tqdm import tqdm
 
-# --- CONFIGURATION ---
-DB_PATH = "./my_media_vault"
-COLLECTION_NAME = "local_files"
-MODEL_ID = "Qwen/Qwen3-VL-Embedding-2B" 
-SKIP_FPS = 1.0  # Process 1 frame per second of video
-BATCH_SIZE = 8  # Lower this if you run out of VRAM
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
+# Configuration
+IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp'}
+VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
+DB_PATH = "./my_media_vault_qwen"
+SOURCE_DIR = "/content/GPT-Image-2"
+BATCH_SIZE = 8  # Keep batch size manageable for VRAM
 
 class MultimodalIndexer:
     def __init__(self):
-        # 1. Initialize ChromaDB (Persistent)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model_name = "Qwen/Qwen3-VL-Embedding-2B"
+        
+        logger.info(f"Loading {self.model_name} to {self.device}...")
+        
+        # Import locally to avoid issues if not installed
+        try:
+            from transformers import AutoProcessor, AutoModel
+            self.processor = AutoProcessor.from_pretrained(self.model_name)
+            self.model = AutoModel.from_pretrained(
+                self.model_name,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                trust_remote_code=True
+            )
+            self.model.eval()
+        except Exception as e:
+            logger.error(f"Failed to load model: {e}")
+            raise e
+
+        # Initialize ChromaDB
         self.client = chromadb.PersistentClient(path=DB_PATH)
         self.collection = self.client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"}  # Best for semantic search
+            name="media_embeddings",
+            metadata={"hnsw:space": "cosine"}
         )
-        
-        # Store DB path for later use
         self.db_path = DB_PATH
-        
-        # 2. Load Model & Processor
-        print(f"Loading {MODEL_ID} to {DEVICE}...")
-        self.processor = AutoProcessor.from_pretrained(MODEL_ID, trust_remote_code=True)
-        self.model = AutoModel.from_pretrained(
-            MODEL_ID, 
-            torch_dtype=torch.float16,  # Half-precision for speed/memory
-            trust_remote_code=True,
-            device_map="auto"
-        ).eval()
 
-    def get_video_frames(self, video_path):
-        """Smart Skip: Extracts frames based on SKIP_FPS."""
+    def get_all_files(self, root_dir: str) -> List[str]:
+        """Recursively get all media files."""
+        files = []
+        for r, _, filenames in os.walk(root_dir):
+            for f in filenames:
+                if any(f.lower().endswith(ext) for ext in IMAGE_EXTENSIONS | VIDEO_EXTENSIONS):
+                    files.append(os.path.join(r, f))
+        return files
+
+    def load_content(self, file_path: str) -> Optional[Image.Image]:
+        """Load image or video frame."""
         try:
-            vr = VideoReader(video_path, ctx=cpu(0))
-            duration_frames = len(vr)
-            native_fps = vr.get_avg_fps()
-            
-            # Select frame indices (e.g., if 30fps and SKIP_FPS=1, take every 30th frame)
-            step = max(1, int(native_fps / SKIP_FPS))
-            indices = list(range(0, duration_frames, step))
-            
-            # Cap at 32 frames to prevent memory overflow on long videos
-            indices = indices[:32]
-            return [Image.fromarray(vr[i].asnumpy()) for i in indices]
+            if any(file_path.lower().endswith(ext) for ext in IMAGE_EXTENSIONS):
+                return Image.open(file_path).convert('RGB')
+            elif any(file_path.lower().endswith(ext) for ext in VIDEO_EXTENSIONS):
+                # For videos, just take the first frame as a representative
+                cap = cv2.VideoCapture(file_path)
+                ret, frame = cap.read()
+                cap.release()
+                if ret:
+                    return Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            return None
         except Exception as e:
-            print(f"Error reading video {video_path}: {e}")
+            logger.warning(f"Could not load {file_path}: {e}")
             return None
 
-    def process_batch(self, file_batch):
-        """Processes a batch of images or videos into embeddings."""
-        batch_content = []
-        batch_ids = []
-        batch_metadata = []
+    def process_batch(self, file_batch: List[str]):
+        """Process a batch of files and store embeddings."""
+        valid_files = []
+        valid_images = []
 
-        for path in file_batch:
-            ext = os.path.splitext(path)[1].lower()
-            try:
-                if ext in ['.mp4', '.mov', '.avi', '.mkv']:
-                    frames = self.get_video_frames(path)
-                    if frames:
-                        # For videos, we average the frames into one 'content' vector
-                        # Note: Qwen3-VL handles list of images natively
-                        batch_content.append(frames) 
-                        batch_ids.append(path)
-                        batch_metadata.append({"type": "video", "path": path})
-                
-                elif ext in ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp']:
-                    img = Image.open(path).convert("RGB")
-                    batch_content.append(img)
-                    batch_ids.append(path)
-                    batch_metadata.append({"type": "image", "path": path})
-            except Exception as e:
-                print(f"Skipping {path} due to error: {e}")
+        # Load images
+        for f in file_batch:
+            img = self.load_content(f)
+            if img is not None:
+                valid_files.append(f)
+                valid_images.append(img)
 
-        if not batch_content:
+        if not valid_images:
             return
 
-        # 3. Generate Embeddings
-        with torch.no_grad():
-            # The processor handles the heavy lifting of resizing/normalizing
-            # Provide empty text prompts for each item in the batch
-            text_prompts = [""] * len(batch_content)
-            inputs = self.processor(images=batch_content, text=text_prompts, return_tensors="pt").to(DEVICE)
+        try:
+            # Prepare inputs
+            # Qwen3-VL processor requires text argument even if empty
+            text_prompts = [""] * len(valid_images)
             
-            # Cast pixel_values to float16 to match model dtype
-            if "pixel_values" in inputs:
-                inputs["pixel_values"] = inputs["pixel_values"].to(torch.float16)
-            
-            # Extract only the necessary keys for get_image_features
-            # to avoid passing conflicting kwargs like 'attention_mask'
-            pixel_values = inputs["pixel_values"]
-            image_grid_thw = inputs["image_grid_thw"]
-            
-            # Get features from the model
-            outputs = self.model.get_image_features(
-                pixel_values=pixel_values,
-                image_grid_thw=image_grid_thw
+            inputs = self.processor(
+                text=text_prompts,
+                images=valid_images,
+                return_tensors="pt",
+                padding=True
             )
             
-            # Extract embeddings from the output object
-            # Qwen3-VL-Embedding returns BaseModelOutputWithDeepstackFeatures
-            # The last_hidden_state contains the sequence embeddings
-            # We need to pool over the sequence dimension to get a single vector per image
-            if hasattr(outputs, 'last_hidden_state'):
-                embeddings = outputs.last_hidden_state.mean(dim=1)  # Mean pooling over sequence
-            else:
-                # Fallback: if outputs is already a tensor
-                embeddings = outputs
+            # Move to device and cast to float16
+            pixel_values = inputs['pixel_values'].to(self.device).to(torch.float16)
+            image_grid_thw = inputs['image_grid_thw'].to(self.device)
+
+            with torch.no_grad():
+                # Get features
+                outputs = self.model.get_image_features(
+                    pixel_values=pixel_values,
+                    image_grid_thw=image_grid_thw
+                )
+                
+                # Handle output format
+                if hasattr(outputs, 'last_hidden_state'):
+                    embeddings_tensor = outputs.last_hidden_state
+                else:
+                    embeddings_tensor = outputs
+
+                # Pooling: Mean over sequence dimension (dim=1)
+                # Check if tensor is 3D (batch, seq, dim) or 2D (batch, dim)
+                if embeddings_tensor.dim() == 3:
+                    pooled = embeddings_tensor.mean(dim=1)
+                elif embeddings_tensor.dim() == 2:
+                    # Already pooled or single item without seq dim
+                    pooled = embeddings_tensor
+                else:
+                    # Unexpected shape, unsqueeze to make it 2D
+                    pooled = embeddings_tensor.unsqueeze(0)
+
+                # Normalize embeddings (L2 norm)
+                # Ensure we normalize over the last dimension (feature dim)
+                if pooled.dim() == 1:
+                    pooled = pooled.unsqueeze(0)  # Make sure it's 2D (1, dim)
+                
+                # Normalize along the feature dimension (last dim)
+                embeddings_normalized = torch.nn.functional.normalize(pooled, p=2, dim=-1)
+
+            # Convert to list
+            embeddings_list = embeddings_normalized.cpu().float().numpy().tolist()
+
+            # Validate lengths match before adding to DB
+            if len(valid_files) != len(embeddings_list):
+                logger.error(f"Mismatch: {len(valid_files)} files vs {len(embeddings_list)} embeddings")
+                # Truncate to match to prevent crash
+                min_len = min(len(valid_files), len(embeddings_list))
+                valid_files = valid_files[:min_len]
+                embeddings_list = embeddings_list[:min_len]
+
+            # Add to ChromaDB
+            self.collection.add(
+                embeddings=embeddings_list,
+                ids=[os.path.basename(f) + "_" + str(i) for i, f in enumerate(valid_files)], # Unique IDs
+                metadatas=[{"file_path": f} for f in valid_files],
+                documents=[f for f in valid_files] # Store path as document too
+            )
             
-            embeddings_list = embeddings.cpu().detach().numpy().tolist()
+            logger.info(f"Processed batch: {len(valid_files)} items")
 
-        # 4. Save to ChromaDB
-        self.collection.add(
-            embeddings=embeddings_list,
-            ids=batch_ids,
-            metadatas=batch_metadata
-        )
+        except Exception as e:
+            logger.error(f"Error processing batch: {e}", exc_info=True)
 
-    def index_directory(self, root_dir):
-        """Walks through folder and processes files in batches."""
-        all_files = []
-        for root, _, files in os.walk(root_dir):
-            for f in files:
-                all_files.append(os.path.join(root, f))
+    def index_directory(self, root_dir: str):
+        """Main indexing loop."""
+        all_files = self.get_all_files(root_dir)
+        logger.info(f"Found {len(all_files)} files. Starting indexing...")
 
-        print(f"Found {len(all_files)} files. Starting indexing...")
-        
         for i in tqdm(range(0, len(all_files), BATCH_SIZE)):
             batch = all_files[i : i + BATCH_SIZE]
             self.process_batch(batch)
 
-
-# --- EXECUTION ---
-if __name__ == "__main__":
+def main():
     indexer = MultimodalIndexer()
-    indexer.index_directory("/content/GPT-Image-2")
+    indexer.index_directory(SOURCE_DIR)
     print(f"Indexing complete. Database saved at {DB_PATH}")
+
+if __name__ == "__main__":
+    main()
