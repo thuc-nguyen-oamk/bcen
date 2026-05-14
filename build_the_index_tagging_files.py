@@ -48,6 +48,12 @@ class MultimodalIndexer:
 
         
 
+        # Store DB path for later use
+
+        self.db_path = DB_PATH
+
+        
+
         # 2. Load Model & Processor
 
         print(f"Loading {MODEL_ID} to {DEVICE}...")
@@ -182,6 +188,14 @@ class MultimodalIndexer:
             }
 
             embeddings = self.model.get_image_features(**model_inputs)
+
+            # Extract the actual embedding tensor from the output object
+
+            # For Qwen3-VL-Embedding, the pooled representation is in 'last_hidden_state'
+
+            # We need to pool over the sequence dimension to get a single vector per image
+
+            embeddings = embeddings.last_hidden_state.mean(dim=1)  # Mean pooling over sequence
 
             embeddings_list = embeddings.cpu().detach().numpy().tolist()
 
