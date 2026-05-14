@@ -168,7 +168,11 @@ class MultimodalIndexer:
 
             # The processor handles the heavy lifting of resizing/normalizing
 
-            inputs = self.processor(images=batch_content, return_tensors="pt").to(DEVICE)
+            # Provide empty text prompts for each item in the batch
+
+            text_prompts = [""] * len(batch_content)
+
+            inputs = self.processor(images=batch_content, text=text_prompts, return_tensors="pt").to(DEVICE)
 
             # Use FP16 to match model weight types
 
