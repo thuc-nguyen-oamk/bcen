@@ -174,13 +174,14 @@ class MultimodalIndexer:
 
             inputs = self.processor(images=batch_content, text=text_prompts, return_tensors="pt").to(DEVICE)
 
-            # Use FP16 to match model weight types
+            # Extract only the necessary keys for get_image_features
+            # to avoid passing conflicting kwargs like 'attention_mask'
+            model_inputs = {
+                "pixel_values": inputs["pixel_values"],
+                "image_grid_thw": inputs["image_grid_thw"]
+            }
 
-            inputs = {k: v.to(torch.float16) if v.is_floating_point() else v for k, v in inputs.items()}
-
-            
-
-            embeddings = self.model.get_image_features(**inputs)
+            embeddings = self.model.get_image_features(**model_inputs)
 
             embeddings_list = embeddings.cpu().detach().numpy().tolist()
 
@@ -232,6 +233,6 @@ if __name__ == "__main__":
 
     indexer = MultimodalIndexer()
 
-    indexer.index_directory("/content/test")
+    indexer.index_directory("/content/GPT-Image-2")
 
     print(f"Indexing complete. Database saved at {DB_PATH}")
