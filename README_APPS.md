@@ -163,8 +163,6 @@ Swagger UI available at: `http://localhost:8080/swagger-ui.html`
 Ông Nguyễn Khắc Chúc đang làm việc tại Đại học Quốc gia Hà Nội. 
 Bà Lan, vợ ông Chúc, cũng làm việc tại đây.
 
-Chủ tịch Hồ Chí Minh sinh ngày 19 tháng 5 năm 1890 tại làng Sen, xã Kim Liên, huyện Nam Đàn, tỉnh Nghệ An.
-
 Công ty TNHH MTV Việt Nam có trụ sở chính tại Hà Nội và chi nhánh tại Thành phố Hồ Chí Minh.
 ```
 
