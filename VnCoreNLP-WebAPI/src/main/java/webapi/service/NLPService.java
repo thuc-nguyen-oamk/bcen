@@ -74,12 +74,12 @@ public class NLPService {
             List<Map<String, Object>> wordsList = new ArrayList<>();
             for (Word word : sentence.getWords()) {
                 Map<String, Object> wordMap = new LinkedHashMap<>();
-                wordMap.put("id", word.getId());
+                wordMap.put("id", word.getIndex());
                 wordMap.put("text", word.getForm());
-                wordMap.put("pos", word.getPos());
-                wordMap.put("ner", word.getNer());
+                wordMap.put("pos", word.getPosTag());
+                wordMap.put("ner", word.getNerLabel());
                 wordMap.put("head", word.getHead());
-                wordMap.put("dep", word.getDep());
+                wordMap.put("dep", word.getDepLabel());
                 wordsList.add(wordMap);
                 totalWords++;
             }
@@ -116,7 +116,7 @@ public class NLPService {
             int startIndex = -1;
             
             for (Word word : sentence.getWords()) {
-                String ner = word.getNer();
+                String ner = word.getNerLabel();
                 
                 if (ner.startsWith("B-")) {
                     // Save previous entity if exists
@@ -126,7 +126,7 @@ public class NLPService {
                     // Start new entity
                     currentEntity = new StringBuilder(word.getForm());
                     currentType = ner.substring(2);
-                    startIndex = word.getId();
+                    startIndex = word.getIndex();
                 } else if (ner.startsWith("I-") && currentEntity.length() > 0) {
                     // Continue current entity
                     currentEntity.append(" ").append(word.getForm());
