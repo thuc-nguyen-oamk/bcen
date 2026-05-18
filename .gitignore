@@ -1,64 +1,45 @@
-# Compiled and build artifacts
-*.class
-*.o
-*.obj
-*.out
-build/
-target/
+```
+# Compressed model files
+*.xz
 
-# Dependencies
-node_modules/
-venv/
-.venv/
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-.gradle/
+# Dependencies and build artifacts
+target/
 
 # Logs and temp files
 *.log
 *.tmp
-*.swp
-*.swo
 
 # Environment
 .env
 .env.local
-*.env.*
+.env.*
 
 # Editors
 .vscode/
 .idea/
 
-# System files
-.DS_Store
-Thumbs.db
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py~
+*.py.class
+*.py.obj
+*.py.out
 
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Compressed files
+# Java/Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
 *.zip
-*.gz
 *.tar
-*.tgz
+*.gz
 *.bz2
 *.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+
+# Models and data
+__VnCoreNLP/
+```
